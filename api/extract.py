@@ -18,8 +18,8 @@ async def extract(file: UploadFile = File(...)):
     if file.content_type != "application/pdf":
         raise HTTPException(400, "Please upload a PDF file.")
     raw = await file.read()
-    if len(raw) > 25 * 1024 * 1024:
-        raise HTTPException(413, "Maximum file size is 25 MB.")
+    if len(raw) > 4 * 1024 * 1024:
+        raise HTTPException(413, "Maximum file size is 4 MB.")
     with tempfile.TemporaryDirectory() as work:
         inp = os.path.join(work, "input.pdf")
         stem = os.path.join(work, "pantone-report")
