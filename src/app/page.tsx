@@ -30,7 +30,14 @@ export default function Home() {
     [file, setFile] = useState<File | null>(null),
     [result, setResult] = useState<Result | null>(null),
     [busy, setBusy] = useState(false),
+    [progress, setProgress] = useState(0),
+    [activity, setActivity] = useState<{ message: string; time: string }[]>([]),
     [error, setError] = useState("");
+  const log = (message: string) =>
+    setActivity((current) => [
+      ...current,
+      { message, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) },
+    ]);
   async function login(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -46,14 +53,34 @@ export default function Home() {
     if (!file) return;
     setBusy(true);
     setError("");
+    setProgress(8);
+    setActivity([]);
+    log(`Upload received · ${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+    const stages = [
+      [22, "Reading PDF structure"],
+      [44, "Extracting document colors"],
+      [68, "Calculating Pantone matches"],
+      [86, "Rendering PNG, PDF, and CSV reports"],
+    ] as const;
+    let stage = 0;
+    const timer = setInterval(() => {
+      if (stage >= stages.length) return;
+      const [value, message] = stages[stage++];
+      setProgress(value);
+      log(message);
+    }, 2500);
     const fd = new FormData();
     fd.append("file", file);
     const endpoint =
       process.env.NODE_ENV === "development" ? "/api/process" : "/api/extract";
+    log(`Calling ${endpoint}`);
+    const startedAt = Date.now();
     const r = await fetch(endpoint, { method: "POST", body: fd }),
       d = await r.json();
+    clearInterval(timer);
     setBusy(false);
     if (!r.ok) {
+      log(`Failed after ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
       setError(d.detail || d.error || "Processing failed.");
       return;
     }
@@ -64,6 +91,8 @@ export default function Home() {
           href: dataUrlToBlobUrl(f.href),
         }),
       );
+    setProgress(100);
+    log(`Complete · ${((Date.now() - startedAt) / 1000).toFixed(1)}s elapsed`);
     setResult(d);
     setTimeout(() => setResult(null), 1800000);
   }
@@ -331,12 +360,13 @@ export default function Home() {
             </div>
           )}
           {busy && (
-            <div>
+            <div style={{ width: "100%", maxWidth: 620, textAlign: "left" }}>
               <TimerReset size={38} className="orange" />
-              <h2 style={{ margin: "18px 0 8px" }}>Reading your document…</h2>
-              <p style={{ color: "#777066" }}>
-                Extracting colors and calculating Delta E matches.
-              </p>
+              <h2 style={{ margin: "18px 0 8px", textAlign: "center" }}>Processing your document…</h2>
+              <p style={{ color: "#777066", textAlign: "center" }}>Vercel may take a little longer on the first request while the processing function starts.</p>
+              <div style={{ height: 8, background: "#d5cfc3", margin: "26px 0 20px", overflow: "hidden" }}><div style={{ height: "100%", width: `${progress}%`, background: "#ff6b2c", transition: "width .5s ease" }} /></div>
+              <div style={{ display: "grid", gap: 9, color: "#665f56", fontSize: 13 }}>{activity.map((item, index) => <div key={`${item.time}-${index}`} style={{ display: "flex", gap: 8, alignItems: "center" }}><Check size={14} color="#ff6b2c" /><span style={{ flex: 1 }}>{item.message}</span><time style={{ color: "#9a9287", fontSize: 11 }}>{item.time}</time></div>)}</div>
+              <button className="btn" onClick={() => navigator.clipboard?.writeText(activity.map((item) => `${item.time}  ${item.message}`).join("\n"))} style={{ background: "transparent", border: "1px solid #d5cfc3", padding: "9px 12px", marginTop: 22, fontSize: 12 }}>Copy activity log</button>
             </div>
           )}
           {result && (
