@@ -23,6 +23,7 @@ function dataUrlToBlobUrl(dataUrl: string) {
   const bytes = Uint8Array.from(atob(body), (c) => c.charCodeAt(0));
   return URL.createObjectURL(new Blob([bytes], { type: mime }));
 }
+const MAX_FILE_SIZE = 4 * 1024 * 1024;
 export default function Home() {
   const [ok, setOk] = useState(false),
     [email, setEmail] = useState(""),
@@ -36,7 +37,14 @@ export default function Home() {
   const log = (message: string) =>
     setActivity((current) => [
       ...current,
-      { message, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) },
+      {
+        message,
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
+      },
     ]);
   async function login(e: React.FormEvent) {
     e.preventDefault();
@@ -51,11 +59,17 @@ export default function Home() {
   }
   async function upload() {
     if (!file) return;
+    if (file.size > MAX_FILE_SIZE) {
+      setError("This PDF is larger than 4 MB. Please choose a smaller file for Vercel Hobby.");
+      return;
+    }
     setBusy(true);
     setError("");
     setProgress(8);
     setActivity([]);
-    log(`Upload received · ${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+    log(
+      `Upload received · ${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`,
+    );
     const stages = [
       [22, "Reading PDF structure"],
       [44, "Extracting document colors"],
@@ -324,12 +338,21 @@ export default function Home() {
                 Drop your PDF here
               </h2>
               <p style={{ color: "#777066", margin: 0 }}>
-                or click to browse · PDF only · up to 25 MB
+                or click to browse · PDF only · up to 4 MB
               </p>
               <input
                 type="file"
                 accept="application/pdf"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                onChange={(e) => {
+                  const selected = e.target.files?.[0] || null;
+                  if (selected && selected.size > MAX_FILE_SIZE) {
+                    setFile(null);
+                    setError("This PDF is larger than 4 MB. Please choose a smaller file for Vercel Hobby.");
+                    return;
+                  }
+                  setError("");
+                  setFile(selected);
+                }}
                 style={{ display: "none" }}
               />
             </label>
@@ -362,11 +385,70 @@ export default function Home() {
           {busy && (
             <div style={{ width: "100%", maxWidth: 620, textAlign: "left" }}>
               <TimerReset size={38} className="orange" />
-              <h2 style={{ margin: "18px 0 8px", textAlign: "center" }}>Processing your document…</h2>
-              <p style={{ color: "#777066", textAlign: "center" }}>Vercel may take a little longer on the first request while the processing function starts.</p>
-              <div style={{ height: 8, background: "#d5cfc3", margin: "26px 0 20px", overflow: "hidden" }}><div style={{ height: "100%", width: `${progress}%`, background: "#ff6b2c", transition: "width .5s ease" }} /></div>
-              <div style={{ display: "grid", gap: 9, color: "#665f56", fontSize: 13 }}>{activity.map((item, index) => <div key={`${item.time}-${index}`} style={{ display: "flex", gap: 8, alignItems: "center" }}><Check size={14} color="#ff6b2c" /><span style={{ flex: 1 }}>{item.message}</span><time style={{ color: "#9a9287", fontSize: 11 }}>{item.time}</time></div>)}</div>
-              <button className="btn" onClick={() => navigator.clipboard?.writeText(activity.map((item) => `${item.time}  ${item.message}`).join("\n"))} style={{ background: "transparent", border: "1px solid #d5cfc3", padding: "9px 12px", marginTop: 22, fontSize: 12 }}>Copy activity log</button>
+              <h2 style={{ margin: "18px 0 8px", textAlign: "center" }}>
+                Processing your document…
+              </h2>
+              <p style={{ color: "#777066", textAlign: "center" }}>
+                Vercel may take a little longer on the first request while the
+                processing function starts.
+              </p>
+              <div
+                style={{
+                  height: 8,
+                  background: "#d5cfc3",
+                  margin: "26px 0 20px",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${progress}%`,
+                    background: "#ff6b2c",
+                    transition: "width .5s ease",
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gap: 9,
+                  color: "#665f56",
+                  fontSize: 13,
+                }}
+              >
+                {activity.map((item, index) => (
+                  <div
+                    key={`${item.time}-${index}`}
+                    style={{ display: "flex", gap: 8, alignItems: "center" }}
+                  >
+                    <Check size={14} color="#ff6b2c" />
+                    <span style={{ flex: 1 }}>{item.message}</span>
+                    <time style={{ color: "#9a9287", fontSize: 11 }}>
+                      {item.time}
+                    </time>
+                  </div>
+                ))}
+              </div>
+              <button
+                className="btn"
+                onClick={() =>
+                  navigator.clipboard?.writeText(
+                    activity
+                      .map((item) => `${item.time}  ${item.message}`)
+                      .join("\n"),
+                  )
+                }
+                style={{
+                  background: "transparent",
+                  border: "1px solid #d5cfc3",
+                  padding: "9px 12px",
+                  marginTop: 22,
+                  fontSize: 12,
+                }}
+              >
+                Copy activity log
+              </button>
             </div>
           )}
           {result && (
